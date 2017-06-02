@@ -1,0 +1,162 @@
+#!/usr/bin/env python
+
+# TITLE: iPerf Discovery
+# Author: Kris Armstrong
+# Date: May 31, 2017
+# Version 1.0
+
+# Revision History
+#
+
+# ---------------------------------------------------------------------------
+# Kris Armstrong | June 1 2017 | Added Logging Method                       |
+#                |             | Cleaned up Exception Handling              |
+#                |             | Remove b' in favor of .encode and .decode  |
+#                |             | Added aircheck_sqllite method              |
+#                |             | Added Min/Max Time Outs                    |
+# ---------------------------------------------------------------------------
+# Kris Armstrong | May 31 2017 | Added FileI/O for exception                |
+# ---------------------------------------------------------------------------
+# Kris Armstrong | May 30 2017 | Moved Vars to Global                       |
+# ---------------------------------------------------------------------------
+# Kris Armstrong | May 25 2017 | Added Parser Function                      |
+# ---------------------------------------------------------------------------
+# Kris Armstrong | May 1 2017  | iPerf Discovery was Born                   |
+# ---------------------------------------------------------------------------
+#
+
+# Library Imports
+import ipaddress
+import socket
+from datetime import datetime
+
+# Defines Global Variables
+BUFFER = 4096  # 4k The size of the TCP Buffer
+MESSAGE = 'TA:getattrlong'.encode('utf-8')
+TCP_PORT = 2359  # Sets Port to 2359 (iPerf Remote)
+MIN_SCAN_TIMEOUT = .010  # Sets Min socket timeout to 10ms 'milliseconds'
+MAX_SCAN_TIMEOUT = .160  # Sets Max socket timeout to 100ms 'milliseconds'
+IPERF_QUERY_TIMEOUT = 5  # Sets socket timeout to 5s 'seconds'
+LOGGER = '/var/log/iperfdiscovery.log'  # Log file for discovery
+LOGGER = 'iperfdiscovery.log'
+
+
+def error_logging(err):
+    # Method to handle error logging
+
+    with open(LOGGER, 'a+') as file_open:  # Opens log file in append mode
+        file_open.write(str(err))
+
+    return
+
+
+def network_port_scanner(network):
+    tmp_iperf_list = []  # Temp iPerf List (Responders)
+    iPerf_remotes = []  # iPerf Remotes
+    total_ip_count = 0  # Total IP's in network
+    active_ip_count = 0  # Total IP's Active, with port 2359 "OPEN"
+
+    socket.setdefaulttimeout(MIN_SCAN_TIMEOUT)  # Setting Socket Time Out
+
+    start_time = datetime.now()  # Setting beginning time of scan
+
+    # Scans for Active IP's with port 2359 Open
+    for index in network.hosts():  # Determines Hosts for network
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp_sock:
+                result = tcp_sock.connect_ex((str(index), TCP_PORT))  # Check if IP is Valid and Port is Open
+                if result == 0:
+                    active_ip_count += 1  # Increment valid IP counter
+                    tmp_iperf_list.append(index)  # Appends iPerf attributes to iPerf Remote list
+
+        except socket.timeout:
+            print("socket timeout")
+
+        except socket.error as err:
+            error_logging(err)
+
+        finally:
+            pass
+
+
+    # Increase Scan Time of Active Hosts to 5 second
+    #
+    socket.setdefaulttimeout(IPERF_QUERY_TIMEOUT)  # Sockets timeout to 5 seconds
+
+    for index in tmp_iperf_list:
+
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp_sock:
+                tcp_sock.connect_ex((str(index), TCP_PORT))  # Open TCP Socket to Port for given IP
+                print("DEBUG: IP(s) to be scanned", index)  # Debug IP Address of remote(s)
+                tcp_sock.sendall(MESSAGE)  # Gets the attributes binary Required for python3
+                response = tcp_sock.recv(BUFFER)  # Sets Receive Buffer Size
+                iPerf_remotes.append(response)  # Appends iPerf attributes to iPerf Remote list
+
+        except socket.error as err:
+            error_logging(err)
+
+        finally:
+            pass
+
+    end_time = datetime.now()  # Setting End Time (Scan Complete)
+    total = end_time - start_time  # Calculating Total Time
+
+    # Parses the Results and Prints the Output
+    parser(iPerf_remotes, total, active_ip_count, total_ip_count)
+
+
+def parser(iPerf_remotes, total, active_ip_count, total_ip_count):
+    count_valid = 0  # Initialize Counts Valid iPerf Remotes
+    count_invalid = 0  # Initialize Counts InValid iPerf Remotes
+
+    for index in iPerf_remotes:
+        print("-" * 60)
+        if index.find(b'iPerf Remote'):
+            count_valid += 1
+            index = str(index.decode('utf-8'))  # Decodes byte string to unicode utf-8
+            index = str(index).replace("{'OS_STDERR': '', 'AGENT_MESSAGE': '', 'AGENT_RETURN_CODE': 0, 'OS_STDOUT': '",
+                                       '')
+            index = str(index).replace(
+                "', 'OS_COMMAND': 'mfg_mach;mfg_ipv4;mfg_gtme;cat /build_number.txt;cat /sys/class/net/eth0/speed;mfg_batt;mfg_poev;cat /tmp/xdpdump.txt', 'OS_RETURNCODE': 0}",
+                '')
+            index = str(index).replace('iPerf Remote\\n', 'iPerf Remote: ')
+            index = str(index).replace('=', ': ')
+            # fields = str(index).split('\\n')
+            for fields in index.split('\\n'):
+                print(fields)
+        else:
+            count_invalid += 1
+            print("Not an iPerf Remote")
+
+        print("-" * 60)
+
+    total_counts = count_invalid + count_valid
+
+    print()
+    print("-" * 60)
+    print("DEBUG: Total Valid iPerf Remotes:", count_valid)
+    print("DEBUG: Total Invalid iPerf Remotes on:", count_invalid)
+    print("DEBUG: Total Devices on port", TCP_PORT, "is", total_counts)
+    print("DEBUG: Checking", active_ip_count, "IP(s) for port", TCP_PORT, "out of", total_ip_count, "scanned")
+    print("Total Scan Time:", total)
+    print("-" * 60)
+
+
+def aircheck_sqllite():
+    return
+
+
+def main():
+    try:
+        network = input('Please Enter subnet i.e 192.168.1.0/24: ')
+    except KeyboardInterrupt as msg:
+        print("Exiting Application", msg)
+        return False
+
+    network = (ipaddress.ip_network(network, strict=False))
+    network_port_scanner(network)
+
+
+if __name__ == "__main__":
+    main()
