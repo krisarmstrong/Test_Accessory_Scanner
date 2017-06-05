@@ -124,7 +124,7 @@ def parser(iPerf_remotes, total, active_ip_count, total_ip_count):
         print("-" * 60)
         index = str(index.decode('utf-8'))  # Decodes byte string to unicode utf-8
 
-        if index.find('iPerf Remote'):  # Looks for the string iPerf Remote
+        if index.find('iPerf Remote') >= 0:  # Looks for the string iPerf Remote
             count_valid += 1
 
             # Next two lines remove garbage
@@ -150,18 +150,17 @@ def parser(iPerf_remotes, total, active_ip_count, total_ip_count):
             index = str(index).replace('Port ID:   ', 'NsPort=')
             index = str(index).replace('Vlan ID:   ', 'NsVlan=')
             index = str(index).replace('Vlan ID:', 'NsVlan=')
-
+            index = str(index).replace('\\n', ';')
             # index = str(index).replace('iPerf Remote\\n', 'iPerf Remote: ')
 
             # File Output
-            for fields in index.replace('\\n', ';'):
-                with open(IPERF_ACC, 'a+') as file_open:  # Opens remote file
-                    file_open.write(str(fields))
+            with open(IPERF_ACC, 'a+') as file_open:  # Opens remote file
+                file_open.write(index)
+                file_open.write('\n')
 
             # Format OnScreen Output
-            # fields = str(index).split('\\n')
             index = str(index).replace('=', ': ')
-            for fields in index.split('\\n'):
+            for fields in index.split(';'):
                 print(fields)
         else:
             count_invalid += 1
