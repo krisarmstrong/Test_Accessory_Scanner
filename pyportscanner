@@ -2,19 +2,39 @@
 
 # TITLE: iPerf Discovery
 # Author: Kris Armstrong
-# Date: May 31, 2017
-# Version 1.0
+# Date: June 7, 2017
+# Version 1.0.9
 
 # Revision History
 
-# Known Defects: June 5, 2017
-#
+# Known Defects: June 7, 2017
+# Threader function incomplete
+# options file parser incomplete
 
-# FEATURES: June 6, 2017
+# FUTURE FEATURES: June 6, 2017
 # Add variable timeout to further improve iPerf Discover (Speed/Accuracy)
-# Logging should be cleaned up and improved (Probably to agressive now?)
+# Consider threading the application
 
 # Change Log
+
+
+# ----------------------------------------------------------------------------
+# Kris Armstrong | June 8 2017 | Moved iPerf query to its own function       |
+#                |             | Attempt 1 - Threading                       |
+#                |             | Added Argparse -v Version                   |
+#                |             | Added Argparse -o Option File               |
+#                |             | Added Argparse -t default timeout over ride |
+#                |             | Added Argparse -th Threaded mode            |
+#                |             | Removed aircheck_sqlLITE function as it     |
+#                |             | will not be used                            |
+#                |             | Created option_file parser                  |
+# ----------------------------------------------------------------------------
+# Kevin Loftin   | June 7 2017 | Skip custom parsing and write raw results   |
+# ----------------------------------------------------------------------------
+# Kris Armstrong | June 7 2017 | Removed Custom logging                      |
+#                |             | Implemented the Python Logging Library      |
+#                |             | Attempting to implement variable timeout    |
+#                |             | Improved VarName Read ability               |
 # ----------------------------------------------------------------------------
 # Kris Armstrong | June 6 2017 | Added command line arguments                |
 #                |             | Moved onscreen output to log file           |
@@ -46,10 +66,12 @@
 
 # Library Imports
 import argparse
+import logging
 import os
 import socket
-import time
+import threading
 from datetime import datetime
+from queue import Queue
 
 import ipaddress
 
@@ -60,24 +82,19 @@ TCP_PORT = 2359  # Sets Port to 2359 (iPerf Remote)
 MIN_SCAN_TIMEOUT = .010  # Sets Min socket timeout to 10ms 'milliseconds'
 MAX_SCAN_TIMEOUT = .160  # Sets Max socket timeout to 100ms 'milliseconds'
 IPERF_QUERY_TIMEOUT = 5  # Sets socket timeout to 5s 'seconds'
+
+# File I/O Vars
 # log_file_location = '/var/log/iperfdiscovery.log'  # Log file for discovery
-log_file_location = 'iperfdiscovery.log'  # Testing log, revert to above on actual ACKG2
-iPerf_Accessory = 'iperfaccessary'  # iPerf Accessory output file
+log_file_location = 'iperfdiscovery.log'  # Testing log, revert to above on actual AirCheck G2
+# log_file_location = '/var/log/iperfaccessory'  # iPerf Accessory output file
+iPerf_Accessory = 'iperfaccessory'  # iPerf Accessory output file
+option_file = '/mnt/mmc3/iperfaccessory.conf'  # iPerf Accessory option file "Allows increasing timeout"
 
-
-def logger(err_msg):
-    # Method to handle error logging
-
-    with open(log_file_location, 'a+') as file_open:  # Opens log file in append mode
-        file_open.write(str(err_msg))
-        file_open.write('\n')
-
-    return
+q = Queue()
 
 
 def network_port_scanner(network):
     tmp_iperf_list = []  # Temp iPerf List (Responders)
-    iPerf_remotes = []  # Valid iPerf Remotes
     total_ip_count = 0  # Total IP's in network
     active_ip_count = 0  # Total IP's Active, with port 2359 "OPEN"
 
@@ -86,148 +103,187 @@ def network_port_scanner(network):
     start_time = datetime.now()  # Setting beginning time of scan
 
     # Scans for Active IP's with port 2359 Open
-    for index in network.hosts():  # Determines Hosts for network
+    for host in network.hosts():  # Determines Hosts for network
+
+        total_ip_count += 1  # Total number of host counts
+
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp_sock:
-                result = tcp_sock.connect_ex((str(index), TCP_PORT))  # Check if IP is Valid and Port is Open
+                result = tcp_sock.connect_ex((str(host), TCP_PORT))  # Check if IP is Valid and Port is Open
                 if result == 0:
                     active_ip_count += 1  # Increment valid IP counter
-                    tmp_iperf_list.append(index)  # Appends iPerf attributes to iPerf Remote list
+                    tmp_iperf_list.append(host)  # Appends iPerf attributes to iPerf Remote list
+                    logging.debug("DEBUG: IP(s) to be scanned %s", host)  # Debug IP Address of remote(s)
 
-        except socket.timeout as err_msg:
-            logger(err_msg)
-
-        except socket.error as err_msg:
-            logger(err_msg)
-
-        finally:
+        except OSError as err_msg:
+            logging.debug('Socket Error %s', err_msg)
+            print(err_msg)
             pass
 
+    iperf_query(tmp_iperf_list, start_time, active_ip_count, total_ip_count)
+
+
+def iperf_query(tmp_iperf_list, start_time, active_ip_count, total_ip_count):
+    iPerf_remotes = []  # Valid iPerf Remotes
+
     # Increase Scan Time of Active Hosts to 5 second
-    #
     socket.setdefaulttimeout(IPERF_QUERY_TIMEOUT)  # Sockets timeout to 5 seconds
 
-    for index in tmp_iperf_list:
+    for host in tmp_iperf_list:
 
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp_sock:
-                tcp_sock.connect_ex((str(index), TCP_PORT))  # Open TCP Socket to Port for given IP
-                err_msg = time.ctime(), "DEBUG: IP(s) to be scanned", index  # Debug IP Address of remote(s)
-                logger(err_msg)
+                tcp_sock.connect_ex((str(host), TCP_PORT))  # Open TCP Socket to Port for given IP
+                logging.debug("DEBUG: IP(s) to be queried %s", host)  # Debug IP Address of remote(s)
                 tcp_sock.sendall(MESSAGE)  # Gets the attributes binary Required for python3
                 response = tcp_sock.recv(BUFFER)  # Sets Receive Buffer Size
                 iPerf_remotes.append(response)  # Appends iPerf attributes to iPerf Remote list
 
-        except socket.error as err_msg:
-            logger(err_msg)
-
-        finally:
+        except OSError as err_msg:
+            logging.debug('DEBUG: Socket Error %s', err_msg)
             pass
 
-    end_time = datetime.now()  # Setting End Time (Scan Complete)
-    total = end_time - start_time  # Calculating Total Time
+        end_time = datetime.now()  # Setting End Time (Scan Complete)
+        total_time = end_time - start_time  # Calculating Total Time
 
-    # Parses the Results and Prints the Output
-    remote_parser(iPerf_remotes, total, active_ip_count, total_ip_count)
+        # Parses the Results and Prints the Output
+        remote_parser(iPerf_remotes, total_time, active_ip_count, total_ip_count)
 
 
 def remote_parser(iPerf_remotes, total, active_ip_count, total_ip_count):
-
     count_valid = 0  # Initialize Counts Valid iPerf Remotes
     count_invalid = 0  # Initialize Counts InValid iPerf Remotes
 
-    for index in iPerf_remotes:
-        err_msg = "-" * 80
-        logger(err_msg)
-        index = str(index.decode('utf-8'))  # Decodes byte string to unicode utf-8
+    for fields in iPerf_remotes:
+        logging.info("-" * 80)
+        fields = str(fields.decode('utf-8'))  # Decodes byte string to unicode utf-8
 
-        if index.find('iPerf Remote') >= 0:  # Looks for the string iPerf Remote >= 0 because neg returns buleon True
+        if fields.find('iPerf Remote') >= 0:  # Looks for the string iPerf Remote >= 0 because neg returns buleon True
             count_valid += 1
 
+            if True:
+                # Opens iPerf Remote File and writes fields
+                with open(iPerf_Accessory, 'a+') as file_open:
+                    file_open.write(fields)
+                    file_open.write('\n')
+
             # Next two lines remove garbage
-            index = str(index).replace("{'OS_STDERR': '', 'AGENT_MESSAGE': '', 'AGENT_RETURN_CODE': 0, 'OS_STDOUT': '",
-                                       '')
-            index = str(index).replace(
+            fields = str(fields).replace(
+                "{'OS_STDERR': '', 'AGENT_MESSAGE': '', 'AGENT_RETURN_CODE': 0, 'OS_STDOUT': '",
+                '')  # Removing leading garbage
+            fields = str(fields).replace(
                 "', 'OS_COMMAND': 'mfg_mach;mfg_ipv4;mfg_gtme;cat /build_number.txt;cat /sys/class/net/eth0/speed;mfg_batt;mfg_poev;cat /tmp/xdpdump.txt', 'OS_RETURNCODE': 0}",
-                '')
-            err_msg = time.ctime(), index
-            logger(err_msg)
+                '')  # Removing trailing junk
+            logging.debug('%s', fields)
 
-            # On Screen Output
-            # Changing names of the fields to match SQL Parser
-            index = str(index).strip()  # Removes any leading and trailing spaces
-            ' '.join(index.split())  # Removes duplicate spaces
+            # Formatting the fields to match SQL Parser
+            fields = str(fields).strip()  # Removes any leading and trailing spaces
+            ' '.join(fields.split())  # Removes duplicate spaces
 
-            index = str(index).replace('ethaddr=', 'MAC=')
-            index = str(index).replace('PS9: ', 'Batt=')
-            index = str(index).replace('PS8: ', 'PoeV=')
-            index = str(index).replace('EtherType: ', 'NsType=')
-            index = str(index).replace('Device ID: ', 'NsDev=')
-            index = str(index).replace('Addresses: ', 'NsAddr=')
-            index = str(index).replace('Platform:  ', 'NsPlatform=')
-            index = str(index).replace('Port ID:   ', 'NsPort=')
-            index = str(index).replace('Vlan ID:   ', 'NsVlan=')
-            index = str(index).replace('Vlan ID:', 'NsVlan=')
-            index = str(index).replace('\\n', ';')
-            # index = str(index).replace('iPerf Remote\\n', 'iPerf Remote: ')
+            fields = str(fields).replace('ethaddr=', 'MAC=')
+            fields = str(fields).replace('PS9: ', 'Batt=')
+            fields = str(fields).replace('PS8: ', 'PoeV=')
+            fields = str(fields).replace('EtherType: ', 'NsType=')
+            fields = str(fields).replace('Device ID: ', 'NsDev=')
+            fields = str(fields).replace('Addresses: ', 'NsAddr=')
+            fields = str(fields).replace('Platform:  ', 'NsPlatform=')
+            fields = str(fields).replace('Port ID:   ', 'NsPort=')
+            fields = str(fields).replace('Vlan ID:   ', 'NsVlan=')
+            fields = str(fields).replace('Vlan ID:', 'NsVlan=')
+            fields = str(fields).replace('\\n', ';')
 
-            # Opens iPerf Remote File and writes fields
-            with open(iPerf_Accessory, 'a+') as file_open:
-                file_open.write(index)
-                file_open.write('\n')
-
-            # Format OnScreen Output
-            index = str(index).replace('=', ': ')
-            for fields in index.split(';'):
-                err_msg = time.ctime(), fields
-                logger(err_msg)
+            if False:
+                # Opens iPerf Remote File and writes fields
+                with open(iPerf_Accessory, 'a+') as file_open:
+                    file_open.write(fields)
+                    file_open.write('\n')
         else:
             count_invalid += 1
-            err_msg = time.ctime(), "Not an iPerf Remote"
-            logger(err_msg)
+            logging.info("%s Not an iPerf Remote", fields)
 
-        err_msg = "-" * 80
-        logger(err_msg)
+        logging.info("-" * 80)
 
     total_counts = count_invalid + count_valid
 
-    err_msg = '-' * 80
-    logger(err_msg)
-    err_msg = time.ctime(), "DEBUG: Total Valid iPerf Remotes:", count_valid
-    logger(err_msg)
-    err_msg = time.ctime(), "DEBUG: Total Invalid iPerf Remotes on:", count_invalid
-    logger(err_msg)
-    err_msg = time.ctime(), "DEBUG: Total Devices on port", TCP_PORT, "is", total_counts
-    logger(err_msg)
-    err_msg = time.ctime(), "DEBUG: Checking", active_ip_count, "IP(s) for port", TCP_PORT, "out of", total_ip_count, "scanned"
-    logger(err_msg)
-    err_msg = time.ctime(), "Total Scan Time:", total
-    logger(err_msg)
-    err_msg = ("-" * 80)
-    logger(err_msg)
+    logging.info('-' * 80)
+    logging.debug("DEBUG: Total Valid iPerf Remotes: %s", count_valid)
+    logging.debug("DEBUG: Total Invalid iPerf Remotes on: %s", count_invalid)
+    logging.debug("DEBUG: Total Devices on port: %s" " is %s", TCP_PORT, total_counts)
+    logging.debug("DEBUG: Checking: %s" " IP(s) for port: %s " "out of: %s " "scanned", active_ip_count, TCP_PORT,
+                  total_ip_count)
+    logging.debug("DEBUG: Total Scan Time: %s", total)
+    logging.info("-" * 80)
 
 
-def aircheck_sqllite():
-    return
+def threader():
+    while True:
+        worker = q.get()
+        network_port_scanner(worker)
+        q.task_done()
+
+
+for x in range(30):
+    t = threading.Thread(target=threader)
+    t.daemon = True
+    t.start()
+
+for worker in network:
+    q.put(worker)
+
+q.join()
+
+
+def options_conf_parser():
+    with open(option_file, mode='r') as file:
+        print("options")
+        print(file)
 
 
 def main():
-    # Removes iPerf Remote File if its exists File Output
+    # Logging (File Location, Log level, date, message)
+    logging.basicConfig(filename=log_file_location, filemode='w', level=logging.DEBUG, format='%(asctime)s %(message)s')
+
+    # Removes iPerf Accessory File if its exists File Output Logs errors
+    # NOTE: File cannot be found is normal in the log expected behavior
     try:
         os.remove(iPerf_Accessory)
     except OSError as err_msg:
-        logger(err_msg)
+        logging.debug('DEBUG: OS Error %s', err_msg)
         pass
 
     # Arg Parser
     parser = argparse.ArgumentParser()
     parser.add_argument('network', help='The IP/Network you wish to scan', type=str)
+    parser.add_argument('-t', '--timeout', nargs='?', const=1, type=int, help='Optional socket timeout')
+    parser.add_argument('-v', '--version', action='version', version='%(prog)s 1.9')
+    parser.add_argument('-o', '--options', action='store_true',
+                        help='Uses the advanced configuration options if present')
+    parser.add_argument('-th', '--threading', action='store_true',
+                        help='Enables the port scanner to run in threaded mode')
 
-    args = parser.parse_args()
-    network = args.network
+    try:
+        args = parser.parse_args()
+        if args.options:
+            option_file()
 
-    network = (ipaddress.ip_network(network, strict=False))
-    network_port_scanner(network)
+        if args.timeout:
+            MIN_SCAN_TIMEOUT = args.timeout
+            print(MIN_SCAN_TIMEOUT)
+
+        if args.threading:
+            threading()
+
+        network = args.network  # Gets network from args parse mandatory argument
+
+        # Calling Port Scanner
+        network = (ipaddress.ip_network(network, strict=False))
+        network_port_scanner(network)
+
+    except KeyboardInterrupt as err_msg:
+        logging.debug(err_msg)
+
+    except OSError as err_msg:
+        logging.debug(err_msg)
 
 
 if __name__ == "__main__":
