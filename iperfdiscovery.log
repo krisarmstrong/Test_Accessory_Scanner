@@ -1,3 +1,1 @@
-2017-06-08 22:04:10,730 DEBUG: OS Error [Errno 2] No such file or directory: 'iperfaccessory'
-2017-06-08 22:04:11,450 DEBUG: IP(s) to be scanned 10.0.16.63
-2017-06-08 22:04:11,452 DEBUG: IP(s) to be scanned 10.0.16.64
+2017-06-13 15:37:04,302 DEBUG: OS Error [Errno 2] No such file or directory: 'iperfaccessory'
