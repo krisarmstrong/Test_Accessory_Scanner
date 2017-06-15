@@ -2,26 +2,25 @@
 
 __Title__ = "iPerf Discovery"
 __author__ = "Kris Armstrong"
-__version__ = "1.0.10"
+__version__ = "1.0.11"
 
 
 # TITLE: iPerf Discovery
 # Author: Kris Armstrong
-# Date: June 7, 2017
-# Version 1.0.9
+# Date: June 14, 2017
+# Version 1.0.11
 
 # Revision History
 
 # Known Defects: June 7, 2017
-# Threader function incomplete
 # options file parser incomplete
 
 # FUTURE FEATURES: June 6, 2017
-# Add variable timeout to further improve iPerf Discover (Speed/Accuracy)
-# Consider threading the application
+# Adding Threading would speed scan time
 
 # Change Log
-
+# ----------------------------------------------------------------------------
+# Kris Armstrong | June 14 2017| Removed Threading                           |
 # ----------------------------------------------------------------------------
 # Kris Armstrong | June 12 2017| Changed function name to tcp_port_ping      |
 #                |             | Setup separate timers for tcp_ping and query|
@@ -77,9 +76,7 @@ import argparse
 import logging
 import os
 import socket
-import threading
 from datetime import datetime
-from queue import Queue
 
 import ipaddress
 
@@ -95,12 +92,10 @@ IPERF_QUERY_TIMEOUT = 5  # Sets socket timeout to 5s 'seconds'
 LOG_FILE = 'iperfdiscovery.log'  # Testing log, revert to above on actual AirCheck G2
 IPERF_ACCESSORY_FILE = 'iperfaccessory'  # iPerf Accessory output file
 OPTION_FILE = '/mnt/mmc3/iperfaccessory.conf'  # iPerf Accessory option file "Allows increasing timeout"
-q = Queue
-
 
 def main():
     """
-    iPerf Accessory Discovery
+    iPerf Accessory Discovery Utility for AirCheck G2 V2.0
 
     :return:
     """
@@ -122,8 +117,6 @@ def main():
     parser.add_argument('-v', '--version', action='version', version='%(prog)s 1.9')
     parser.add_argument('-o', '--options', action='store_true',
                         help='Uses the advanced configuration options if present')
-    parser.add_argument('-th', '--threading', action='store_true',
-                        help='Enables the port scanner to run in threaded mode')
 
     try:
         args = parser.parse_args()
@@ -134,27 +127,10 @@ def main():
             MIN_SCAN_TIMEOUT = args.timeout
             print(MIN_SCAN_TIMEOUT)
 
-        if args.threading:
-            threading()
-
         network = args.network  # Gets network from args parse mandatory argument
 
         # Calling Port Scanner
         network = (ipaddress.ip_network(network, strict=False))
-
-        # ip_list = [] # IP Address lists
-        # for ip in network.hosts():
-        #     ip_list.append(ip)
-        #
-        # for x in range(30):
-        #     t=threading.Thread(target=threader)
-        #     t.daemon = True
-        #     t.start()
-        #
-        # for worker in ip_list:
-        #     q.put(worker)
-        #
-        # q.join()
 
         tcp_port_ping(network)
 
@@ -163,13 +139,6 @@ def main():
 
     except OSError as err_msg:
         logging.debug(err_msg)
-
-
-# def threader():
-#     worker = q.get()
-#     tcp_port_ping(worker)
-#     q.task_done()
-
 
 def tcp_port_ping(network):
     """
@@ -187,6 +156,7 @@ def tcp_port_ping(network):
     tcp_ping_start_time = datetime.now()  # Setting beginning time of scan
 
     # Scans for Active IP's with port 2359 Open
+
     for host in network.hosts():  # Determines Hosts for network
 
         total_ip_count += 1  # Total number of host counts
@@ -327,7 +297,6 @@ def remote_parser(iPerf_accessory, tcp_ping_total_time, iperf_query_total_time, 
     logging.debug("DEBUG: Total iPerf Query Time: %s", iperf_query_total_time)
     logging.debug("DEBUG: Total Time: %s ", total_time)
 
-\
 
 def options_conf_parser():
     """
