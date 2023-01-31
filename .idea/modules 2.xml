@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/TA_Finder.iml" filepath="$PROJECT_DIR$/.idea/TA_Finder.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/pyportscanner.iml" filepath="$PROJECT_DIR$/.idea/pyportscanner.iml" />
     </modules>
   </component>
 </project>
