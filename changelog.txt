@@ -1,0 +1,84 @@
+# iPerf Discovery Changelog
+
+## Version 1.0.13 (April 17, 2025)
+
+- Added Git repository setup with .gitignore.
+- Introduced bump_version.py script for automatic version incrementing.
+- Updated README.md with development instructions for Git workflow and versioning.
+
+## Version 1.0.12 (April 16, 2025)
+
+- Refactored script to use asyncio for asynchronous network scanning and querying, improving performance.
+- Added Config class to organize global constants.
+- Implemented proper options file parser for timeout settings.
+- Fixed timeout handling to respect command-line and config file inputs.
+- Improved logging with structured format and optional verbose console output.
+- Enhanced error handling for network, file, and socket operations.
+- Updated output formatting for consistency and clarity.
+- Added comprehensive docstrings and comments per PEP 8.
+- Ensured compatibility with embedded systems using only Python 3 standard library.
+- Updated version to 1.0.12 and synchronized argparse version.
+- Added README.md and changelog.txt for better documentation.
+
+## Version 1.0.11 (June 14, 2017)
+
+- Removed threading due to stability issues.
+- Changed function name to tcp_port_ping.
+- Setup separate timers for tcp_ping and query.
+- First pass at adding docstrings.
+
+## Version 1.0.10 (June 12, 2017)
+
+- Moved iPerf query to its own function.
+- Attempted threading (later removed).
+- Added argparse -v (version), -o (option file), -t (timeout), -th (threaded mode).
+- Removed aircheck_sqlLITE function.
+- Created initial option_file parser (incomplete).
+
+## Version 1.0.9 (June 8, 2017)
+
+- Skipped custom parsing and wrote raw results (Kevin Loftin).
+- Removed custom logging in favor of Python logging library.
+- Attempted variable timeout implementation.
+- Improved variable name readability.
+
+## Version 1.0.8 (June 7, 2017)
+
+- Added command-line arguments.
+- Moved onscreen output to log file.
+- Cleaned up methods and variable names.
+- Removed unused imports.
+- Fixed invalid counts, output string separation, and iPerf accessory file purge.
+
+## Version 1.0.7 (June 6, 2017)
+
+- Added output to file for iPerf remotes.
+- Started output formatting changes.
+
+## Version 1.0.6 (June 5, 2017)
+
+- Added logging method.
+- Cleaned up exception handling.
+- Replaced b' with .encode and .decode.
+- Added aircheck_sqllite method (later removed).
+- Added min/max timeouts.
+
+## Version 1.0.5 (June 1, 2017)
+
+- Added File I/O for exceptions.
+
+## Version 1.0.4 (May 31, 2017)
+
+- Moved variables to global scope.
+
+## Version 1.0.3 (May 30, 2017)
+
+- Added parser function.
+
+## Version 1.0.2 (May 25, 2017)
+
+- Initial development.
+
+## Version 1.0.1 (May 1, 2017)
+
+- Initial release: iPerf Discovery created.
